@@ -9,7 +9,7 @@ def get_cctv_dict_from_json():
     for cctv in data:
         name = cctv["cctv_name"] + " " + cctv["location"]
         ip_address = cctv["ip_address"]
-        cctv_list_from_json[name] = ip_address
+        cctv_list_from_json[ip_address] = name
 
     return cctv_list_from_json
 

@@ -8,8 +8,13 @@ import time
 
 from setting import MODE, NUM_PING, NUM_WORKER
 from resource.device_list import device_list
-from utils.output_translation import *
+from utils.output_translation import output_success
 from utils.json_reader import get_cctv_dict_from_json
+from resource.device_tags import device_tag_dict
+
+
+# device yang sudah ditandai kerusakannya
+device_tag_list_ip = list(device_tag_dict.keys())
 
 
 def worker_func(pingArgs, pending, done):
@@ -29,11 +34,14 @@ def worker_func(pingArgs, pending, done):
             ping_time = (time.time() - start_time) / float(NUM_PING)
             ping_time = "%.3f" % ping_time
 
-            out = output_success(str(out))
-            error = output_error(str(error))
+            out = output_success(str(out), str(error))
+            tag = ""
+            # jika ip address terdapat di resource device tags , tambahkan tags
+            if address[1] in device_tag_list_ip:
+                tag = device_tag_dict[address[1]]
 
             # hasilnya dimasukkan ke done
-            done.put([out, ping_time, address[1], address[0], error, ])
+            done.put([out, ping_time, address[1], address[0], tag, ])
 
     except queue.Empty:
         # Tidak ada lagi alamat
@@ -49,9 +57,9 @@ hosts = os.path.join(scriptDir, 'hosts.txt')
 
 # argumen untuk ping mengecualikan alamat ip
 if plat == "Windows":
-    pingArgs = ["ping", "-n", f"{NUM_PING}", "-l", "1", "-w", "100"]
+    pingArgs = ["ping", "-n", f"{NUM_PING}", "-l", "1", "-w", "300"]
 elif plat == "Linux":
-    pingArgs = ["ping", "-c", f"{NUM_PING}", "-l", "1", "-s", "1", "-W", "1"]
+    pingArgs = ["ping", "-c", f"{NUM_PING}", "-l", "1", "-W", "3"]
 else:
     raise ValueError("Platform tidak didukung")
 
@@ -71,8 +79,8 @@ for _ in range(NUM_WORKER):
 # cctv_dict = device_list
 cctv_dict = get_cctv_dict_from_json()
 print(f"Memulai ping ke {len(cctv_dict.keys())} host...")
-for device in cctv_dict.keys():
-    pending.put([device, cctv_dict[f"{device}"]])  # memasukkan [key, value]
+for ip_addr in cctv_dict.keys():
+    pending.put([cctv_dict[f"{ip_addr}"], ip_addr])  # memasukkan [key, value]
 
 # memulai semua worker
 for w in workers:
@@ -100,6 +108,15 @@ while numTerminated < NUM_WORKER:
 # Menunggu semua worker diakhiri
 for w in workers:
     w.join()
+
+# sorting list berdasarkan tag
+
+
+def get_tag(cam_with_tag):
+    return cam_with_tag[4]
+
+
+list_to_print.sort(key=get_tag, reverse=True)
 
 # Mencetak List
 for i in range(len(list_to_print)):
